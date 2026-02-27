@@ -118,6 +118,54 @@ PROJECT5/
 
 ---
 
+## 캘리브레이션 동작 원리
+
+카메라와 프로젝터의 좌표계가 다르기 때문에, 카메라가 인식한 물체 위치를 프로젝터 화면 좌표로 변환하는 작업이 필요합니다.
+
+```
+프로젝터: chessboard.jpg 출력
+       ↓
+카메라: 벽에 투영된 체스보드 촬영
+       ↓
+cv2.findChessboardCorners()로 코너 35개(7×5) 검출
+       ↓
+cv2.findHomography()로 카메라↔프로젝터 변환 행렬(H) 계산
+       ↓
+calibration_matrix.npy 저장
+```
+
+- 이후 게임 실행 시 카메라 좌표 `(cx, cy)` → `cv2.perspectiveTransform(H)` → 프로젝터 좌표로 변환
+- 5프레임 연속 성공해야 저장되어 흔들림에 의한 오차를 방지
+
+---
+
+## 색상 분류 모델 구조
+
+7가지 색상(Red, Blue, Green, Black, White, Brown, Violet)을 분류하는 **3층 MLP(다층 퍼셉트론)** 입니다.
+
+```
+입력: 64×64 이미지 → 12,288개 픽셀(flatten)
+  ↓
+Linear(12288 → 256) + ReLU
+  ↓
+Linear(256 → 256) + ReLU
+  ↓
+Linear(256 → 7)
+  ↓
+출력: 7가지 색상 중 가장 높은 확률 → 색상 판별
+```
+
+**학습 방식**
+- 원본 이미지에 랜덤 노이즈를 추가해 데이터 10배 증강 (Augmentation)
+- 학습/테스트 = 80% / 20% 분리
+- Optimizer: Adam / Loss: CrossEntropyLoss / Epoch: 100
+
+**실시간 감지 방식** (`color_detect.py`)
+- 카메라 프레임을 슬라이딩 윈도우(stride=16)로 잘라 모델에 입력
+- 신뢰도 90% 이상인 패치만 마스크로 표시 → 윤곽선 추출 → 무게중심 반환
+
+---
+
 ## 기술 스택
 
 - **Python**
